@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Familien-Dashboard</title>
+<style>
+  :root {
+    --bg: #12141a;
+    --panel: #1b1e27;
+    --card: #232733;
+    --text: #e8eaf0;
+    --muted: #8b91a3;
+    --accent: #6d4aff;
+    --good: #37c871;
+    --warn: #ffb020;
+    --bad: #ff5d5d;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    padding: 2vmin;
+    gap: 1.5vmin;
+    overflow: hidden;
+  }
+  header { display: flex; justify-content: space-between; align-items: flex-start; }
+  #clock { font-size: 9vmin; font-weight: 700; line-height: 1; letter-spacing: 0.04em; }
+  #date  { font-size: 3vmin; color: var(--muted); margin-top: 0.6vmin; }
+  #sun   { font-size: 2.6vmin; color: var(--muted); text-align: right; line-height: 1.5; }
+
+  main {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: minmax(0, 1.1fr) minmax(0, 1.4fr);
+    gap: 1.5vmin;
+    min-height: 0;
+  }
+  .panel {
+    background: var(--panel);
+    border-radius: 2vmin;
+    padding: 2vmin;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    min-width: 0;
+    overflow: hidden;
+  }
+  .panel h2 { font-size: 2.8vmin; font-weight: 700; margin-bottom: 1vmin; }
+  .panel .sub { font-size: 2vmin; color: var(--muted); margin-bottom: 1vmin; }
+
+  #weather .now { font-size: 7vmin; font-weight: 700; line-height: 1.1; }
+  #weather .nowdesc { font-size: 2.6vmin; color: var(--muted); margin-bottom: 1.2vmin; }
+  .forecast { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1vmin; }
+  .fday { background: var(--card); border-radius: 1.2vmin; padding: 1.2vmin; text-align: center; }
+  .fday .fdayname { font-size: 2.2vmin; color: var(--muted); }
+  .fday .fdayicon { font-size: 4.5vmin; margin: 0.6vmin 0; }
+  .fday .fdaymax { font-size: 3vmin; font-weight: 700; }
+  .fday .fdaymin { font-size: 2.2vmin; color: var(--muted); }
+  .fday .fdayrain { font-size: 2vmin; color: #6fb8ff; }
+
+  .events { flex: 1; overflow: hidden; display: flex; flex-direction: column; gap: 0.8vmin; }
+  .ev { background: var(--card); border-radius: 1vmin; padding: 1vmin 1.4vmin; display: flex; gap: 1.2vmin; align-items: baseline; min-width: 0; }
+  .evdate { font-size: 2.4vmin; font-weight: 700; color: var(--accent); min-width: 12vmin; }
+  .evtitle { font-size: 2.6vmin; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  #transit { grid-column: 1 / 3; display: grid; grid-template-columns: 1fr 1fr; gap: 1.5vmin; min-height: 0; }
+  #transit .panel-inner { background: var(--panel); border-radius: 2vmin; padding: 2vmin; display: flex; flex-direction: column; min-height: 0; min-width: 0; overflow: hidden; }
+  .stop h3 { font-size: 3vmin; margin-bottom: 1vmin; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rows { flex: 1; display: flex; flex-direction: column; gap: 0.8vmin; overflow: hidden; }
+  .row { background: var(--card); border-radius: 1.2vmin; padding: 1vmin 1.4vmin; display: flex; align-items: center; gap: 1.2vmin; font-size: 2.8vmin; }
+  .badge { background: var(--accent); color: #fff; font-weight: 700; border-radius: 0.8vmin; padding: 0.3vmin 1vmin; min-width: 8vmin; text-align: center; font-size: 2.4vmin; }
+  .dest { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .time { font-weight: 700; white-space: nowrap; }
+  .delay { color: var(--bad); font-size: 0.8em; margin-left: 0.4em; }
+  .on-time { color: var(--good); font-size: 0.8em; margin-left: 0.4em; }
+  .cancelled .dest, .cancelled .time { text-decoration: line-through; opacity: 0.5; }
+
+  .status { color: var(--muted); font-size: 1.8vmin; padding: 0.6vmin 0; }
+  .error { color: var(--warn); font-size: 1.8vmin; word-break: break-all; overflow: hidden; max-height: 6vmin; }
+
+  footer { display: flex; justify-content: space-between; color: var(--muted); font-size: 1.7vmin; }
+  .demo-banner { background: var(--warn); color: #000; font-size: 2vmin; text-align: center; border-radius: 1vmin; padding: 0.5vmin; }
+
+  @media (orientation: portrait) {
+    main { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr) minmax(0, 1.2fr); }
+    #weather { grid-row: 1; }
+    #calendar { grid-row: 2; }
+    #transit { grid-column: 1; grid-row: 3; grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<script>
+/* ======================= KONFIGURATION ======================= */
+const CONFIG = {
+  lat: 54.17,
+  lon: 9.72,
+  ortName: "Holste",
+
+  // Outlook-Kalender: ICS-URL aus "Kalender veröffentlichen" hier eintragen
+  icsUrl:"https://outlook.live.com/owa/calendar/65ea8ccb-4514-45fa-bd68-e7cb167cadd7/48760121-2fc5-4e1f-b05a-b2957e9e3c72/cid-10BF5E0B268648AE/index.html",
+
+  // Abfahrten (Auto-Auflösung per Geocoding; bei falschem Treffer ID fest eintragen)
+  stops: [
+    { label: "Bahnhof Stubben", query: "Bahnhof Stubben", id: "" },
+    { label: "Hellingst, Dorfstr./Kreisstr.", query: "Hellingst Dorfstraße", id: "" }
+  ],
+
+  maxRows: 5,
+  refreshSeconds: 60,
+  weatherRefreshMinutes: 15,
+  kalenderMaxEvents: 7
+};
+
+const TRANSIT_API = "https://api.transitous.org/api/v1";
+/* ============================================================== */
+</script>
+
+<header>
+  <div>
+    <div id="clock">--:--</div>
+    <div id="date"></div>
+  </div>
+  <div id="sun"></div>
+</header>
+
+<div id="demo-banner" style="display:none">DEMO-MODUS (keine Netzverbindung – nur Beispieldaten)</div>
+
+<main>
+  <section class="panel" id="weather">
+    <h2>&#127780; Wetter <span id="ortname"></span></h2>
+    <div class="now" id="wnow">--&#176;</div>
+    <div class="nowdesc" id="wdesc">&nbsp;</div>
+    <div class="forecast" id="forecast"></div>
+    <div class="status" id="wstatus"></div>
+  </section>
+
+  <section class="panel" id="calendar">
+    <h2>&#128197; Familientermine</h2>
+    <div class="events" id="events"></div>
+    <div class="status" id="cstatus"></div>
+    <div class="error" id="cerror"></div>
+  </section>
+
+  <section id="transit"></section>
+</main>
+
+<footer>
+  <span id="last-update"></span>
+  <span>Wetter: Open-Meteo · ÖPNV: Transitous · Sonne/Uhr: lokal</span>
+</footer>
+
+<script>
+"use strict";
+
+/* ---------- Uhr & Datum ---------- */
+function pad(n) { return String(n).padStart(2, "0"); }
+function timeStr(v) {
+  const t = (typeof v === "number") ? new Date(v < 1e12 ? v * 1000 : v) : new Date(v);
+  return pad(t.getHours()) + ":" + pad(t.getMinutes());
+}
+function updateClock() {
+  const now = new Date();
+  document.getElementById("clock").textContent = pad(now.getHours()) + ":" + pad(now.getMinutes());
+  document.getElementById("date").textContent =
+    now.toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+async function fetchJson(url) {
+  const r = await fetch(url, { headers: { "Accept": "application/json" } });
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  return r.json();
+}
+
+/* ---------- Sonnenauf-/untergang (NOAA-Näherung, lokal) ---------- */
+function sunTimes(lat, lon, date) {
+  const rad = Math.PI / 180, dayMs = 86400000;
+  const n = Math.round((Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / dayMs) + 0.0008 - lon / 360);
+  const Jstar = n - lon / 360;
+  const M = (357.5291 + 0.98560028 * Jstar) % 360;
+  const C = 1.9148 * Math.sin(M * rad) + 0.02 * Math.sin(2 * M * rad) + 0.0003 * Math.sin(3 * M * rad);
+  const lambda = (M + C + 180 + 102.9372) % 360;
+  const Jtransit = 2451545.0 + Jstar + 0.0053 * Math.sin(M * rad) - 0.0069 * Math.sin(2 * lambda * rad);
+  const delta = Math.asin(Math.sin(lambda * rad) * Math.sin(23.44 * rad));
+  const cosOmega = (Math.sin(-0.83 * rad) - Math.sin(lat * rad) * Math.sin(delta)) /
+                   (Math.cos(lat * rad) * Math.cos(delta));
+  if (cosOmega > 1 || cosOmega < -1) return null;
+  const omega = Math.acos(cosOmega) / rad;
+  const toD = j => new Date((j - 2440587.5) * dayMs);
+  return { rise: toD(Jtransit - omega / 360), set: toD(Jtransit + omega / 360) };
+}
+function renderSun() {
+  const s = sunTimes(CONFIG.lat, CONFIG.lon, new Date());
+  const el = document.getElementById("sun");
+  if (!s) { el.textContent = "Sonne: Polartag/-nacht"; return; }
+  el.innerHTML = "&#9728;&#8599; " + timeStr(s.rise) + " &nbsp; &#9728;&#8600; " + timeStr(s.set);
+}
+renderSun();
+setInterval(renderSun, 3600000);
+
+/* ---------- Wetter (Open-Meteo) ---------- */
+const WMO = {
+  0: ["Klar", "&#9728;&#65039;"], 1: ["Heiter", "&#127780;"], 2: ["Wolkig", "&#9925;&#65039;"],
+  3: ["Bedeckt", "&#9729;&#65039;"], 45: ["Nebel", "&#127787;"], 48: ["Reifnebel", "&#127787;"],
+  51: ["Sprühregen", "&#127784;"], 53: ["Sprühregen", "&#127784;"], 55: ["Sprühregen", "&#127784;"],
+  61: ["Regen", "&#127783;"], 63: ["Regen", "&#127783;"], 65: ["Starkregen", "&#127783;"],
+  66: ["Gefrierregen", "&#127783;"], 67: ["Gefrierregen", "&#127783;"],
+  71: ["Schnee", "&#10052;&#65039;"], 73: ["Schnee", "&#10052;&#65039;"], 75: ["Starkschnee", "&#10052;&#65039;"],
+  77: ["Schneegriesel", "&#10052;&#65039;"],
+  80: ["Schauer", "&#127783;"], 81: ["Schauer", "&#127783;"], 82: ["Heftige Schauer", "&#127783;"],
+  85: ["Schneeschauer", "&#10052;&#65039;"], 86: ["Schneeschauer", "&#10052;&#65039;"],
+  95: ["Gewitter", "&#9928;"], 96: ["Gewitter m. Hagel", "&#9928;"], 99: ["Gewitter m. Hagel", "&#9928;"]
+};
+function wmo(code) { return WMO[code] || ["Wetter", "&#127780;"]; }
+
+async function loadWeather() {
+  const st = document.getElementById("wstatus");
+  st.textContent = "Lade Wetter …";
+  const url = "https://api.open-meteo.com/v1/forecast" +
+    "?latitude=" + CONFIG.lat + "&longitude=" + CONFIG.lon +
+    "&current=temperature_2m,weather_code,wind_speed_10m" +
+    "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max" +
+    "&forecast_days=4&timezone=Europe%2FBerlin";
+  const data = await fetchJson(url);
+  const c = data.current, d = data.daily;
+  const [desc, icon] = wmo(c.weather_code);
+  document.getElementById("wnow").innerHTML = icon + " " + Math.round(c.temperature_2m) + "&#176;";
+  document.getElementById("wdesc").textContent = desc.replace(/&#\d+;/g, "") + " · " + Math.round(c.wind_speed_10m) + " km/h Wind";
+  const fc = document.getElementById("forecast");
+  fc.innerHTML = "";
+  for (let i = 1; i <= 3; i++) {
+    const [, dicon] = wmo(d.weather_code[i]);
+    const dt = new Date(d.time[i] + "T12:00");
+    fc.innerHTML +=
+      '<div class="fday">' +
+      '<div class="fdayname">' + dt.toLocaleDateString("de-DE", { weekday: "short" }) + '</div>' +
+      '<div class="fdayicon">' + dicon + '</div>' +
+      '<div class="fdaymax">' + Math.round(d.temperature_2m_max[i]) + '&#176;</div>' +
+      '<div class="fdaymin">' + Math.round(d.temperature_2m_min[i]) + '&#176;</div>' +
+      '<div class="fdayrain">&#128167; ' + (d.precipitation_probability_max[i] != null ? d.precipitation_probability_max[i] : 0) + '%</div>' +
+      '</div>';
+  }
+  st.textContent = "Prognose für die nächsten 3 Tage";
+}
+
+/* ---------- Kalender (Outlook-ICS) ---------- */
+function unfoldIcs(text) {
+  return text.replace(/\r\n/g, "\n").replace(/\n[ \t]/g, "");
+}
+function parseIcs(text) {
+  const lines = unfoldIcs(text).split("\n");
+  const evs = [];
+  let cur = null;
+  for (const line of lines) {
+    if (line.startsWith("BEGIN:VEVENT")) cur = {};
+    else if (line.startsWith("END:VEVENT")) { if (cur) evs.push(cur); cur = null; }
+    else if (cur) {
+      const idx = line.indexOf(":");
+      if (idx > 0) {
+        const key = line.slice(0, idx).split(";")[0];
+        const val = line.slice(idx + 1);
+        if (key === "SUMMARY") cur.summary = val;
+        else if (key === "DTSTART") cur.start = val;
+        else if (key === "RRULE") cur.rrule = val;
+      }
+    }
+  }
+  return evs;
+}
+function icsToJs(v) {
+  if (!v) return null;
+  if (/^\d{8}$/.test(v)) return new Date(+v.slice(0,4), +v.slice(4,6)-1, +v.slice(6,8));
+  const m = v.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})(Z)?$/);
+  if (!m) return null;
+  if (m[7] === "Z") return new Date(Date.UTC(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +m[6]));
+  return new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +m[6]);
+}
+async function loadCalendar() {
+  const evBox = document.getElementById("events");
+  const st = document.getElementById("cstatus");
+  const er = document.getElementById("cerror");
+  evBox.innerHTML = "";
+  er.textContent = "";
+  if (!CONFIG.icsUrl) {
+    st.textContent = "Kein Kalender konfiguriert – ICS-URL in CONFIG.icsUrl eintragen.";
+    return;
+  }
+  st.textContent = "Lade Kalender …";
+  try {
+    const r = await fetch(CONFIG.icsUrl);
+    if (!r.ok) throw new Error("HTTP " + r.status + " beim ICS-Feed");
+    const text = await r.text();
+    const evs = parseIcs(text)
+      .map(e => ({
+        d: icsToJs(e.start),
+        title: e.summary || "(ohne Titel)",
+        serie: !!e.rrule,
+        allDay: /^\d{8}$/.test(e.start)
+      }))
+      .filter(e => e.d && e.d >= new Date(new Date().setHours(0,0,0,0)))
+      .sort((a, b) => a.d - b.d)
+      .slice(0, CONFIG.kalenderMaxEvents);
+    if (evs.length === 0) { st.textContent = "Keine kommenden Termine gefunden."; return; }
+    evs.forEach(e => {
+      const label = (e.allDay ? "" : pad(e.d.getHours()) + ":" + pad(e.d.getMinutes()) + " ") +
+                    e.d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" });
+      const div = document.createElement("div");
+      div.className = "ev";
+      div.innerHTML = '<span class="evdate">' + label + '</span>' +
+                      '<span class="evtitle">' + e.title + (e.serie ? ' &#128257;' : '') + '</span>';
+      evBox.appendChild(div);
+    });
+    st.textContent = evs.length + " kommende Termine";
+  } catch (e) {
+    st.textContent = "Kalender konnte nicht geladen werden:";
+    er.textContent = e.message + " (Outlook.com sperrt den direkten Feed-Abruf aus dem Browser teils ab – Stichwort CORS. ggf. lösen wir das später über einen kleinen Umweg.)";
+  }
+}
+
+/* ---------- Abfahrten (Transitous) ---------- */
+function parseDepartures(data) {
+  const list = Array.isArray(data) ? data : (data.stopTimes || data.departures || []);
+  return list.map(st => {
+    const trip = st.trip || {};
+    const line = st.line || st.routeShortName || (st.route && st.route.shortName) ||
+                 trip.routeShortName || (trip.route && trip.route.shortName) || "?";
+    const dest = st.headSign || st.headsign || st.direction || trip.headSign ||
+                 (trip.route && trip.route.longName) || "";
+    const schedTs = st.scheduledTime != null ? st.scheduledTime : (st.plannedTime != null ? st.plannedTime : st.time);
+    const rtTs = st.realtimeTime != null ? st.realtimeTime : schedTs;
+    const cancelled = !!(st.cancelled || trip.cancelled);
+    return { line, dest, schedTs, rtTs, cancelled };
+  }).filter(d => d.rtTs != null);
+}
+
+async function geocodeStop(query) {
+  const data = await fetchJson(TRANSIT_API + "/geocode?text=" + encodeURIComponent(query));
+  const arr = Array.isArray(data) ? data : (data.results || data.matches || []);
+  const m = arr.find(x => x.type === "STOP") || arr[0];
+  if (!m || !m.id) throw new Error("Haltestelle nicht gefunden: " + query);
+  return { id: m.id, name: m.name || query };
+}
+async function resolveStop(cfg, key) {
+  if (cfg.id) return { id: cfg.id, name: cfg.label };
+  const cached = localStorage.getItem(key);
+  if (cached) return JSON.parse(cached);
+  const r = await geocodeStop(cfg.query);
+  localStorage.setItem(key, JSON.stringify(r));
+  return r;
+}
+
+function stopPanel(label) {
+  const wrap = document.createElement("div");
+  wrap.className = "panel-inner stop";
+  wrap.innerHTML =
+    '<h3>&#128646; ' + label + '</h3>' +
+    '<div class="rows"></div>' +
+    '<div class="status"></div>' +
+    '<div class="error"></div>';
+  document.getElementById("transit").appendChild(wrap);
+  return wrap;
+}
+
+async function loadStop(cfg, container, key, demo) {
+  const rowsEl = container.querySelector(".rows");
+  const stEl = container.querySelector(".status");
+  const erEl = container.querySelector(".error");
+  rowsEl.innerHTML = ""; erEl.textContent = "";
+  try {
+    const stop = await resolveStop(cfg, key);
+    stEl.textContent = "Lade Abfahrten …";
+    let data;
+    try {
+      data = await fetchJson(TRANSIT_API + "/stoptimes?stop=" + encodeURIComponent(stop.id) +
+                             "&arriveBy=false&timeZone=Europe%2FBerlin");
+    } catch (e1) {
+      data = await fetchJson(TRANSIT_API + "/stoptimes?stopId=" + encodeURIComponent(stop.id) +
+                             "&arriveBy=false&timeZone=Europe%2FBerlin");
+    }
+    const now = Date.now();
+    const deps = parseDepartures(data)
+      .filter(d => new Date(d.rtTs < 1e12 ? d.rtTs * 1000 : d.rtTs).getTime() >= now - 60000)
+      .sort((a, b) => a.rtTs - b.rtTs)
+      .slice(0, CONFIG.maxRows);
+    if (deps.length === 0) throw new Error("Keine Abfahrten gefunden.");
+    rowsEl.innerHTML = "";
+    deps.forEach(d => {
+      const sched = new Date(d.schedTs < 1e12 ? d.schedTs * 1000 : d.schedTs);
+      const rt = new Date(d.rtTs < 1e12 ? d.rtTs * 1000 : d.rtTs);
+      const delayMin = Math.round((rt - sched) / 60000);
+      const row = document.createElement("div");
+      row.className = "row" + (d.cancelled ? " cancelled" : "");
+      row.innerHTML =
+        '<span class="badge">' + String(d.line).replace("bus-", "") + '</span>' +
+        '<span class="dest">' + d.dest + '</span>' +
+        '<span class="time">' + timeStr(rt) +
+        (d.cancelled ? ' <span class="delay">entfällt</span>' :
+          delayMin > 0 ? '<span class="delay">+' + delayMin + '</span>' :
+          delayMin === 0 ? '<span class="on-time">pünktlich</span>' : '') +
+        '</span>';
+      rowsEl.appendChild(row);
+    });
+    stEl.textContent = deps.length + " Abfahrten · " + stop.name;
+  } catch (e) {
+    rowsEl.innerHTML = "";
+    stEl.textContent = "Fehler:";
+    erEl.textContent = e.message;
+    if (demo) {
+      demo.forEach(function(item) {
+        const row = document.createElement("div");
+        row.className = "row";
+        row.innerHTML =
+          '<span class="badge">' + item[0] + '</span><span class="dest">' + item[1] + '</span>' +
+          '<span class="time">' + timeStr(Date.now() + item[2] * 60000) +
+          (item[3] > 0 ? '<span class="delay">+' + item[3] + '</span>' : '<span class="on-time">pünktlich</span>') +
+          '</span>';
+        rowsEl.appendChild(row);
+      });
+      erEl.textContent += " (Beispieldaten angezeigt)";
+    }
+  }
+}
+
+const DEMO = {
+  0: [["RE7", "Kiel Hbf", 4, 0], ["RB75", "Neumünster", 16, 3], ["RE7", "Flensburg", 33, 0]],
+  1: [["425", "Preetz ZOB", 6, 2], ["425", "Schwentinental", 23, 0], ["425", "Preetz ZOB", 41, 0]]
+};
+
+let netOk = false;
+async function refreshTransit() {
+  netOk = false;
+  for (let i = 0; i < CONFIG.stops.length; i++) {
+    try {
+      await loadStop(CONFIG.stops[i], stopContainers[i], "dash_stop_" + i, DEMO[i]);
+      netOk = true;
+    } catch (e) { /* Fehler shown in panel */ }
+  }
+  document.getElementById("demo-banner").style.display = netOk ? "none" : "block";
+  document.getElementById("last-update").textContent =
+    "Aktualisiert: " + new Date().toLocaleTimeString("de-DE");
+}
+
+/* ---------- Initialisierung ---------- */
+document.getElementById("ortname").textContent = "· " + CONFIG.ortName;
+const stopContainers = CONFIG.stops.map(s => stopPanel(s.label));
+
+(async function init() {
+  try { await loadWeather(); } catch (e) {
+    document.getElementById("wstatus").textContent = "Wetter: " + e.message;
+  }
+  await loadCalendar();
+  await refreshTransit();
+})();
+setInterval(refreshTransit, CONFIG.refreshSeconds * 1000);
+setInterval(function() { loadWeather().catch(function(){}); }, CONFIG.weatherRefreshMinutes * 60000);
+setInterval(function() { loadCalendar().catch(function(){}); }, 10 * 60000);
+setInterval(renderSun, 3600000);
+
+/* Debug: 5x schnell auf die Uhr tippen = Cache löschen + neu laden */
+let taps = 0, tapTimer = null;
+document.getElementById("clock").addEventListener("click", function() {
+  taps++; clearTimeout(tapTimer);
+  tapTimer = setTimeout(function() { taps = 0; }, 1500);
+  if (taps >= 5) {
+    Object.keys(localStorage).filter(function(k){ return k.indexOf("dash_") === 0; })
+      .forEach(function(k){ localStorage.removeItem(k); });
+    location.reload();
+  }
+});
+</script>
+
+</body>
+</html>
+
